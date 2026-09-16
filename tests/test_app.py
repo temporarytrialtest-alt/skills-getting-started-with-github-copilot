@@ -195,6 +195,7 @@ def test_static_index_contains_customizable_timer_controls(client):
     assert response.status_code == 200
     content = response.text
     assert "Pomodoro Timer" in content
+    assert 'id="timer-display" class="timer-display" role="timer"' in content
     assert 'option value="15">15 minutes' in content
     assert 'option value="25">25 minutes' in content
     assert 'option value="35">35 minutes' in content
@@ -221,3 +222,7 @@ def test_static_app_persists_preferences_in_local_storage(client):
     assert "localStorage.getItem" in response.text
     assert "localStorage.setItem" in response.text
     assert "pomodoro-preferences" in response.text
+    assert 'querySelectorAll(\'input[name="theme"]\')' in response.text
+    assert 'getElementById("start-sound")' in response.text
+    assert 'getElementById("end-sound")' in response.text
+    assert 'getElementById("tick-sound")' in response.text

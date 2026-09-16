@@ -29,13 +29,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const startSoundInput = document.getElementById("start-sound");
   const endSoundInput = document.getElementById("end-sound");
   const tickSoundInput = document.getElementById("tick-sound");
-
-  const audioContext =
-    typeof window.AudioContext !== "undefined"
-      ? new window.AudioContext()
-      : typeof window.webkitAudioContext !== "undefined"
-        ? new window.webkitAudioContext()
-        : null;
+  let audioContext;
 
   const state = {
     timerId: null,
@@ -43,7 +37,30 @@ document.addEventListener("DOMContentLoaded", () => {
     preferences: loadPreferences(),
     remainingSeconds: 0,
     lastAnnouncement: "",
+    suppressNextTimerAnnouncement: false,
   };
+
+  function normalizeBoolean(value, fallback) {
+    if (value === undefined || value === null) {
+      return fallback;
+    }
+
+    if (typeof value === "string") {
+      if (value.toLowerCase() === "true") {
+        return true;
+      }
+
+      if (value.toLowerCase() === "false") {
+        return false;
+      }
+    }
+
+    if (typeof value === "boolean") {
+      return value;
+    }
+
+    return Boolean(value);
+  }
 
   function loadPreferences() {
     try {
@@ -61,9 +78,9 @@ document.addEventListener("DOMContentLoaded", () => {
           : defaults.breakDuration,
         theme: themes.includes(stored.theme) ? stored.theme : defaults.theme,
         sounds: {
-          start: Boolean(stored.sounds?.start),
-          end: stored.sounds?.end ?? defaults.sounds.end,
-          tick: Boolean(stored.sounds?.tick),
+          start: normalizeBoolean(stored.sounds?.start, defaults.sounds.start),
+          end: normalizeBoolean(stored.sounds?.end, defaults.sounds.end),
+          tick: normalizeBoolean(stored.sounds?.tick, defaults.sounds.tick),
         },
       };
     } catch (error) {
@@ -105,6 +122,11 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function announceTimerUpdate() {
+    if (state.suppressNextTimerAnnouncement) {
+      state.suppressNextTimerAnnouncement = false;
+      return;
+    }
+
     const minutes = Math.floor(state.remainingSeconds / 60);
     const seconds = state.remainingSeconds % 60;
     const shouldAnnounce =
@@ -135,6 +157,12 @@ document.addEventListener("DOMContentLoaded", () => {
     pauseButton.disabled = !running;
     workDurationSelect.disabled = running;
     breakDurationSelect.disabled = running;
+    themeInputs.forEach((input) => {
+      input.disabled = running;
+    });
+    startSoundInput.disabled = running;
+    endSoundInput.disabled = running;
+    tickSoundInput.disabled = running;
   }
 
   function syncControls() {
@@ -149,11 +177,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.body.dataset.theme = state.preferences.theme;
   }
 
-  function createTone(type) {
-    if (!audioContext) {
-      return;
-    }
-
+  function createTone(type, context) {
     const soundEnabled = state.preferences.sounds[type];
     if (!soundEnabled) {
       return;
@@ -161,30 +185,39 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const frequencies = { start: 523.25, end: 659.25, tick: 880 };
     const durations = { start: 0.12, end: 0.2, tick: 0.03 };
-    const oscillator = audioContext.createOscillator();
-    const gainNode = audioContext.createGain();
+    const oscillator = context.createOscillator();
+    const gainNode = context.createGain();
 
     oscillator.type = "sine";
     oscillator.frequency.value = frequencies[type];
     gainNode.gain.value = type === "tick" ? 0.02 : 0.05;
 
     oscillator.connect(gainNode);
-    gainNode.connect(audioContext.destination);
+    gainNode.connect(context.destination);
     oscillator.start();
-    oscillator.stop(audioContext.currentTime + durations[type]);
+    oscillator.stop(context.currentTime + durations[type]);
   }
 
   function playTone(type) {
-    if (!audioContext) {
+    if (!state.preferences.sounds[type]) {
       return;
+    }
+
+    const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContextClass) {
+      return;
+    }
+
+    if (!audioContext) {
+      audioContext = new AudioContextClass();
     }
 
     if (audioContext.state === "suspended") {
-      audioContext.resume().then(() => createTone(type)).catch(() => {});
+      audioContext.resume().then(() => createTone(type, audioContext)).catch(() => {});
       return;
     }
 
-    createTone(type);
+    createTone(type, audioContext);
   }
 
   function stopTimer() {
@@ -206,14 +239,19 @@ document.addEventListener("DOMContentLoaded", () => {
     stopTimer();
     playTone("end");
 
+    let completionMessage;
     if (state.mode === "work") {
       state.mode = "break";
-      setStatus("Work session complete. Your break timer is ready.");
+      completionMessage = "Work session complete. Your break timer is ready.";
     } else {
       state.mode = "work";
-      setStatus("Break complete. Your next work session is ready.");
+      completionMessage = "Break complete. Your next work session is ready.";
     }
 
+    setStatus(completionMessage);
+    timerAnnouncement.textContent = completionMessage;
+    state.lastAnnouncement = completionMessage;
+    state.suppressNextTimerAnnouncement = true;
     state.remainingSeconds = getModeDuration(state.mode);
     updateDisplay();
   }
