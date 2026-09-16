@@ -208,6 +208,8 @@ def test_static_index_contains_customizable_timer_controls(client):
     assert 'id="start-sound"' in content
     assert 'id="end-sound"' in content
     assert 'id="tick-sound"' in content
+    assert 'id="status-message" class="status-message" aria-live="polite"' in content
+    assert 'id="timer-display" class="timer-display" aria-live="polite"' not in content
 
 
 def test_static_app_persists_preferences_in_local_storage(client):

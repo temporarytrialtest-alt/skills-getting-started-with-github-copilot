@@ -71,7 +71,13 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function savePreferences() {
-    localStorage.setItem(storageKey, JSON.stringify(state.preferences));
+    try {
+      localStorage.setItem(storageKey, JSON.stringify(state.preferences));
+      return true;
+    } catch (error) {
+      console.error("Unable to save preferences:", error);
+      return false;
+    }
   }
 
   function getModeDuration(mode) {
@@ -99,6 +105,8 @@ document.addEventListener("DOMContentLoaded", () => {
     const running = state.timerId !== null;
     startButton.disabled = running;
     pauseButton.disabled = !running;
+    workDurationSelect.disabled = running;
+    breakDurationSelect.disabled = running;
   }
 
   function syncControls() {
@@ -219,12 +227,12 @@ document.addEventListener("DOMContentLoaded", () => {
         ...partialPreferences.sounds,
       },
     };
-    savePreferences();
+    const persisted = savePreferences();
     syncControls();
     if (shouldResetTimer) {
       resetTimer();
     }
-    setStatus("Preferences saved.");
+    setStatus(persisted ? "Preferences saved." : "Preferences updated for this session only.");
   }
 
   startButton.addEventListener("click", startTimer);
