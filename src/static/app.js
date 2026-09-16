@@ -1,126 +1,263 @@
 document.addEventListener("DOMContentLoaded", () => {
-  const activitiesList = document.getElementById("activities-list");
-  const activitySelect = document.getElementById("activity");
-  const signupForm = document.getElementById("signup-form");
-  const messageDiv = document.getElementById("message");
+  const storageKey = "pomodoro-preferences";
+  const workDurations = [15, 25, 35, 45];
+  const breakDurations = [5, 10, 15];
+  const themes = ["light", "dark", "focus"];
+  const defaults = {
+    workDuration: 25,
+    breakDuration: 5,
+    theme: "light",
+    sounds: {
+      start: false,
+      end: true,
+      tick: false,
+    },
+  };
 
-  // Function to fetch activities from API
-  async function fetchActivities() {
+  const timerDisplay = document.getElementById("timer-display");
+  const modeLabel = document.getElementById("mode-label");
+  const statusMessage = document.getElementById("status-message");
+  const startButton = document.getElementById("start-button");
+  const pauseButton = document.getElementById("pause-button");
+  const resetButton = document.getElementById("reset-button");
+  const workModeButton = document.getElementById("work-mode-button");
+  const breakModeButton = document.getElementById("break-mode-button");
+  const workDurationSelect = document.getElementById("work-duration");
+  const breakDurationSelect = document.getElementById("break-duration");
+  const themeInputs = document.querySelectorAll('input[name="theme"]');
+  const startSoundInput = document.getElementById("start-sound");
+  const endSoundInput = document.getElementById("end-sound");
+  const tickSoundInput = document.getElementById("tick-sound");
+
+  const audioContext =
+    typeof window.AudioContext !== "undefined"
+      ? new window.AudioContext()
+      : typeof window.webkitAudioContext !== "undefined"
+        ? new window.webkitAudioContext()
+        : null;
+
+  const state = {
+    timerId: null,
+    mode: "work",
+    preferences: loadPreferences(),
+    remainingSeconds: 0,
+  };
+
+  function loadPreferences() {
     try {
-      const response = await fetch("/activities");
-      const activities = await response.json();
+      const stored = JSON.parse(localStorage.getItem(storageKey));
+      if (!stored) {
+        return { ...defaults, sounds: { ...defaults.sounds } };
+      }
 
-      // Clear loading message
-      activitiesList.innerHTML = "";
-      activitySelect.innerHTML = '<option value="">-- Select an activity --</option>';
-
-      // Populate activities list
-      Object.entries(activities).forEach(([name, details]) => {
-        const activityCard = document.createElement("div");
-        activityCard.className = "activity-card";
-
-        const spotsLeft = details.max_participants - details.participants.length;
-
-        activityCard.innerHTML = `
-          <h4>${name}</h4>
-          <p>${details.description}</p>
-          <p><strong>Schedule:</strong> ${details.schedule}</p>
-          <p><strong>Availability:</strong> ${spotsLeft} spots left</p>
-          <div class="participants">
-            <strong>Participants:</strong>
-            <ul class="participants-list">
-              ${details.participants
-                .map(
-                  (participant) => `
-                    <li>
-                      <span>${participant}</span>
-                      <button class="remove-participant" type="button" data-activity="${name}" data-email="${participant}" aria-label="Unregister ${participant}" title="Unregister participant">&#128465;</button>
-                    </li>
-                  `
-                )
-                .join("")}
-            </ul>
-          </div>
-        `;
-
-        activitiesList.appendChild(activityCard);
-
-        activityCard.querySelectorAll(".remove-participant").forEach((button) => {
-          button.addEventListener("click", async () => {
-            const participant = button.dataset.email;
-            const activity = button.dataset.activity;
-            button.disabled = true;
-
-            try {
-              const response = await fetch(
-                `/activities/${encodeURIComponent(activity)}/participants/${encodeURIComponent(participant)}`,
-                { method: "DELETE" }
-              );
-
-              if (!response.ok) {
-                const result = await response.json();
-                throw new Error(result.detail || "Failed to unregister participant");
-              }
-
-              await fetchActivities();
-            } catch (error) {
-              console.error("Error unregistering participant:", error);
-            }
-          });
-        });
-
-        // Add option to select dropdown
-        const option = document.createElement("option");
-        option.value = name;
-        option.textContent = name;
-        activitySelect.appendChild(option);
-      });
+      return {
+        workDuration: workDurations.includes(Number(stored.workDuration))
+          ? Number(stored.workDuration)
+          : defaults.workDuration,
+        breakDuration: breakDurations.includes(Number(stored.breakDuration))
+          ? Number(stored.breakDuration)
+          : defaults.breakDuration,
+        theme: themes.includes(stored.theme) ? stored.theme : defaults.theme,
+        sounds: {
+          start: Boolean(stored.sounds?.start),
+          end: stored.sounds?.end ?? defaults.sounds.end,
+          tick: Boolean(stored.sounds?.tick),
+        },
+      };
     } catch (error) {
-      activitiesList.innerHTML = "<p>Failed to load activities. Please try again later.</p>";
-      console.error("Error fetching activities:", error);
+      console.error("Unable to load preferences:", error);
+      return { ...defaults, sounds: { ...defaults.sounds } };
     }
   }
 
-  // Handle form submission
-  signupForm.addEventListener("submit", async (event) => {
-    event.preventDefault();
+  function savePreferences() {
+    localStorage.setItem(storageKey, JSON.stringify(state.preferences));
+  }
 
-    const email = document.getElementById("email").value;
-    const activity = document.getElementById("activity").value;
+  function getModeDuration(mode) {
+    return (mode === "work" ? state.preferences.workDuration : state.preferences.breakDuration) * 60;
+  }
 
-    try {
-      const response = await fetch(
-        `/activities/${encodeURIComponent(activity)}/signup?email=${encodeURIComponent(email)}`,
-        {
-          method: "POST",
-        }
-      );
+  function formatTime(totalSeconds) {
+    const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, "0");
+    const seconds = String(totalSeconds % 60).padStart(2, "0");
+    return `${minutes}:${seconds}`;
+  }
 
-      const result = await response.json();
+  function updateDisplay() {
+    timerDisplay.textContent = formatTime(state.remainingSeconds);
+    modeLabel.textContent = state.mode === "work" ? "Work session" : "Break session";
+    workModeButton.classList.toggle("active", state.mode === "work");
+    breakModeButton.classList.toggle("active", state.mode === "break");
+  }
 
-      if (response.ok) {
-        messageDiv.textContent = result.message;
-        messageDiv.className = "success";
-        signupForm.reset();
-      } else {
-        messageDiv.textContent = result.detail || "An error occurred";
-        messageDiv.className = "error";
+  function setStatus(message) {
+    statusMessage.textContent = message;
+  }
+
+  function updateButtons() {
+    const running = state.timerId !== null;
+    startButton.disabled = running;
+    pauseButton.disabled = !running;
+  }
+
+  function syncControls() {
+    workDurationSelect.value = String(state.preferences.workDuration);
+    breakDurationSelect.value = String(state.preferences.breakDuration);
+    startSoundInput.checked = state.preferences.sounds.start;
+    endSoundInput.checked = state.preferences.sounds.end;
+    tickSoundInput.checked = state.preferences.sounds.tick;
+    themeInputs.forEach((input) => {
+      input.checked = input.value === state.preferences.theme;
+    });
+    document.body.dataset.theme = state.preferences.theme;
+  }
+
+  function playTone(type) {
+    if (!audioContext) {
+      return;
+    }
+
+    const soundEnabled = state.preferences.sounds[type];
+    if (!soundEnabled) {
+      return;
+    }
+
+    if (audioContext.state === "suspended") {
+      audioContext.resume().catch(() => {});
+    }
+
+    const frequencies = { start: 523.25, end: 659.25, tick: 880 };
+    const durations = { start: 0.12, end: 0.2, tick: 0.03 };
+    const oscillator = audioContext.createOscillator();
+    const gainNode = audioContext.createGain();
+
+    oscillator.type = "sine";
+    oscillator.frequency.value = frequencies[type];
+    gainNode.gain.value = type === "tick" ? 0.02 : 0.05;
+
+    oscillator.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+    oscillator.start();
+    oscillator.stop(audioContext.currentTime + durations[type]);
+  }
+
+  function stopTimer() {
+    if (state.timerId !== null) {
+      clearInterval(state.timerId);
+      state.timerId = null;
+    }
+    updateButtons();
+  }
+
+  function resetTimer() {
+    stopTimer();
+    state.remainingSeconds = getModeDuration(state.mode);
+    updateDisplay();
+  }
+
+  function completeTimer() {
+    stopTimer();
+    playTone("end");
+
+    if (state.mode === "work") {
+      state.mode = "break";
+      setStatus("Work session complete. Your break timer is ready.");
+    } else {
+      state.mode = "work";
+      setStatus("Break complete. Your next work session is ready.");
+    }
+
+    state.remainingSeconds = getModeDuration(state.mode);
+    updateDisplay();
+  }
+
+  function startTimer() {
+    if (state.timerId !== null) {
+      return;
+    }
+
+    playTone("start");
+    setStatus(state.mode === "work" ? "Focus time started." : "Break time started.");
+
+    state.timerId = window.setInterval(() => {
+      state.remainingSeconds -= 1;
+
+      if (state.remainingSeconds > 0) {
+        playTone("tick");
+        updateDisplay();
+        return;
       }
 
-      messageDiv.classList.remove("hidden");
+      completeTimer();
+    }, 1000);
 
-      // Hide message after 5 seconds
-      setTimeout(() => {
-        messageDiv.classList.add("hidden");
-      }, 5000);
-    } catch (error) {
-      messageDiv.textContent = "Failed to sign up. Please try again.";
-      messageDiv.className = "error";
-      messageDiv.classList.remove("hidden");
-      console.error("Error signing up:", error);
-    }
+    updateButtons();
+  }
+
+  function setMode(mode) {
+    state.mode = mode;
+    resetTimer();
+    setStatus(mode === "work" ? "Work session selected." : "Break session selected.");
+  }
+
+  function updatePreferences(partialPreferences) {
+    state.preferences = {
+      ...state.preferences,
+      ...partialPreferences,
+      sounds: {
+        ...state.preferences.sounds,
+        ...partialPreferences.sounds,
+      },
+    };
+    savePreferences();
+    syncControls();
+    resetTimer();
+    setStatus("Preferences saved.");
+  }
+
+  startButton.addEventListener("click", startTimer);
+  pauseButton.addEventListener("click", () => {
+    stopTimer();
+    setStatus("Timer paused.");
+  });
+  resetButton.addEventListener("click", () => {
+    resetTimer();
+    setStatus("Timer reset.");
+  });
+  workModeButton.addEventListener("click", () => setMode("work"));
+  breakModeButton.addEventListener("click", () => setMode("break"));
+
+  workDurationSelect.addEventListener("change", () => {
+    updatePreferences({ workDuration: Number(workDurationSelect.value) });
   });
 
-  // Initialize app
-  fetchActivities();
+  breakDurationSelect.addEventListener("change", () => {
+    updatePreferences({ breakDuration: Number(breakDurationSelect.value) });
+  });
+
+  themeInputs.forEach((input) => {
+    input.addEventListener("change", () => {
+      if (input.checked) {
+        updatePreferences({ theme: input.value });
+      }
+    });
+  });
+
+  startSoundInput.addEventListener("change", () => {
+    updatePreferences({ sounds: { start: startSoundInput.checked } });
+  });
+
+  endSoundInput.addEventListener("change", () => {
+    updatePreferences({ sounds: { end: endSoundInput.checked } });
+  });
+
+  tickSoundInput.addEventListener("change", () => {
+    updatePreferences({ sounds: { tick: tickSoundInput.checked } });
+  });
+
+  syncControls();
+  resetTimer();
+  setStatus("Choose your preferred timer, theme, and sound settings.");
+  updateButtons();
 });

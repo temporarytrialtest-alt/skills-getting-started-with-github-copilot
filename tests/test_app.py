@@ -185,3 +185,37 @@ def test_delete_removes_duplicate_participant_entries(client):
     # Assert
     assert response.status_code == 200
     assert participants == ["other.student@mergington.edu"]
+
+
+def test_static_index_contains_customizable_timer_controls(client):
+    # Act
+    response = client.get("/static/index.html")
+
+    # Assert
+    assert response.status_code == 200
+    content = response.text
+    assert "Pomodoro Timer" in content
+    assert 'option value="15">15 minutes' in content
+    assert 'option value="25">25 minutes' in content
+    assert 'option value="35">35 minutes' in content
+    assert 'option value="45">45 minutes' in content
+    assert 'option value="5">5 minutes' in content
+    assert 'option value="10">10 minutes' in content
+    assert 'option value="15">15 minutes' in content
+    assert 'value="light"' in content
+    assert 'value="dark"' in content
+    assert 'value="focus"' in content
+    assert 'id="start-sound"' in content
+    assert 'id="end-sound"' in content
+    assert 'id="tick-sound"' in content
+
+
+def test_static_app_persists_preferences_in_local_storage(client):
+    # Act
+    response = client.get("/static/app.js")
+
+    # Assert
+    assert response.status_code == 200
+    assert "localStorage.getItem" in response.text
+    assert "localStorage.setItem" in response.text
+    assert "pomodoro-preferences" in response.text
