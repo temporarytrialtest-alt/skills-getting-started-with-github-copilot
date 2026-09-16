@@ -17,6 +17,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const timerDisplay = document.getElementById("timer-display");
   const modeLabel = document.getElementById("mode-label");
   const statusMessage = document.getElementById("status-message");
+  const timerAnnouncement = document.getElementById("timer-announcement");
   const startButton = document.getElementById("start-button");
   const pauseButton = document.getElementById("pause-button");
   const resetButton = document.getElementById("reset-button");
@@ -41,6 +42,7 @@ document.addEventListener("DOMContentLoaded", () => {
     mode: "work",
     preferences: loadPreferences(),
     remainingSeconds: 0,
+    lastAnnouncement: "",
   };
 
   function loadPreferences() {
@@ -95,10 +97,36 @@ document.addEventListener("DOMContentLoaded", () => {
     modeLabel.textContent = state.mode === "work" ? "Work session" : "Break session";
     workModeButton.classList.toggle("active", state.mode === "work");
     breakModeButton.classList.toggle("active", state.mode === "break");
+    announceTimerUpdate();
   }
 
   function setStatus(message) {
     statusMessage.textContent = message;
+  }
+
+  function announceTimerUpdate() {
+    const minutes = Math.floor(state.remainingSeconds / 60);
+    const seconds = state.remainingSeconds % 60;
+    const shouldAnnounce =
+      state.remainingSeconds === getModeDuration(state.mode) ||
+      state.remainingSeconds % 60 === 0 ||
+      state.remainingSeconds <= 10;
+
+    if (!shouldAnnounce) {
+      return;
+    }
+
+    const announcement =
+      state.mode === "work"
+        ? `Work session: ${minutes} minute${minutes === 1 ? "" : "s"} and ${seconds} second${seconds === 1 ? "" : "s"} remaining.`
+        : `Break session: ${minutes} minute${minutes === 1 ? "" : "s"} and ${seconds} second${seconds === 1 ? "" : "s"} remaining.`;
+
+    if (announcement === state.lastAnnouncement) {
+      return;
+    }
+
+    timerAnnouncement.textContent = announcement;
+    state.lastAnnouncement = announcement;
   }
 
   function updateButtons() {
@@ -170,6 +198,7 @@ document.addEventListener("DOMContentLoaded", () => {
   function resetTimer() {
     stopTimer();
     state.remainingSeconds = getModeDuration(state.mode);
+    state.lastAnnouncement = "";
     updateDisplay();
   }
 
@@ -218,7 +247,7 @@ document.addEventListener("DOMContentLoaded", () => {
     setStatus(mode === "work" ? "Work session selected." : "Break session selected.");
   }
 
-  function updatePreferences(partialPreferences, shouldResetTimer = false) {
+  function updatePreferences(partialPreferences, modeToReset = null) {
     state.preferences = {
       ...state.preferences,
       ...partialPreferences,
@@ -229,7 +258,7 @@ document.addEventListener("DOMContentLoaded", () => {
     };
     const persisted = savePreferences();
     syncControls();
-    if (shouldResetTimer) {
+    if (modeToReset && state.mode === modeToReset) {
       resetTimer();
     }
     setStatus(persisted ? "Preferences saved." : "Preferences updated for this session only.");
@@ -248,11 +277,11 @@ document.addEventListener("DOMContentLoaded", () => {
   breakModeButton.addEventListener("click", () => setMode("break"));
 
   workDurationSelect.addEventListener("change", () => {
-    updatePreferences({ workDuration: Number(workDurationSelect.value) }, true);
+    updatePreferences({ workDuration: Number(workDurationSelect.value) }, "work");
   });
 
   breakDurationSelect.addEventListener("change", () => {
-    updatePreferences({ breakDuration: Number(breakDurationSelect.value) }, true);
+    updatePreferences({ breakDuration: Number(breakDurationSelect.value) }, "break");
   });
 
   themeInputs.forEach((input) => {
