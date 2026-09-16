@@ -3,46 +3,71 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Mergington High School Activities</title>
+    <title>Pomodoro Timer</title>
     <link rel="stylesheet" href="styles.css" />
   </head>
-  <body>
-    <header>
-      <h1>Mergington High School</h1>
-      <h2>Extracurricular Activities</h2>
-    </header>
-
-    <main>
-      <section id="activities-container">
-        <h3>Available Activities</h3>
-        <div id="activities-list">
-          <!-- Activities will be loaded here -->
-          <p>Loading activities...</p>
+  <body data-theme="light">
+    <main class="app-shell">
+      <section class="timer-panel">
+        <p class="eyebrow">Customizable focus timer</p>
+        <h1>Pomodoro Timer</h1>
+        <p id="mode-label" class="mode-label">Work session</p>
+        <div id="timer-display" class="timer-display" role="timer">25:00</div>
+        <div class="timer-actions">
+          <button id="start-button" type="button">Start</button>
+          <button id="pause-button" type="button">Pause</button>
+          <button id="reset-button" type="button">Reset</button>
         </div>
+        <div class="session-actions">
+          <button id="work-mode-button" class="secondary-button" type="button">Work Session</button>
+          <button id="break-mode-button" class="secondary-button" type="button">Break Session</button>
+        </div>
+        <p id="status-message" class="status-message" aria-live="polite">
+          Choose your preferred timer, theme, and sound settings.
+        </p>
+        <p id="timer-announcement" class="visually-hidden" aria-live="polite"></p>
       </section>
 
-      <section id="signup-container">
-        <h3>Sign Up for an Activity</h3>
-        <form id="signup-form">
-          <div class="form-group">
-            <label for="email">Student Email:</label>
-            <input type="email" id="email" required placeholder="your-email@mergington.edu" />
-          </div>
-          <div class="form-group">
-            <label for="activity">Select Activity:</label>
-            <select id="activity" required>
-              <option value="">-- Select an activity --</option>
-              <!-- Activity options will be loaded here -->
-            </select>
-          </div>
-          <button type="submit">Sign Up</button>
-        </form>
-        <div id="message" class="hidden"></div>
+      <section class="settings-panel">
+        <h2>Settings</h2>
+
+        <div class="setting-group">
+          <label for="work-duration">Focus duration</label>
+          <select id="work-duration">
+            <option value="15">15 minutes</option>
+            <option value="25">25 minutes</option>
+            <option value="35">35 minutes</option>
+            <option value="45">45 minutes</option>
+          </select>
+        </div>
+
+        <div class="setting-group">
+          <label for="break-duration">Break duration</label>
+          <select id="break-duration">
+            <option value="5">5 minutes</option>
+            <option value="10">10 minutes</option>
+            <option value="15">15 minutes</option>
+          </select>
+        </div>
+
+        <fieldset class="setting-group">
+          <legend>Theme</legend>
+          <label><input type="radio" name="theme" value="light" /> Light mode</label>
+          <label><input type="radio" name="theme" value="dark" /> Dark mode</label>
+          <label><input type="radio" name="theme" value="focus" /> Focus mode</label>
+        </fieldset>
+
+        <fieldset class="setting-group">
+          <legend>Sound</legend>
+          <label><input id="start-sound" type="checkbox" /> Start sound</label>
+          <label><input id="end-sound" type="checkbox" checked /> End sound</label>
+          <label><input id="tick-sound" type="checkbox" /> Tick sound</label>
+        </fieldset>
       </section>
     </main>
 
     <footer>
-      <p>&copy; 2023 Mergington High School</p>
+      <p>Preferences are saved automatically in your browser.</p>
     </footer>
 
     <script src="app.js"></script>
