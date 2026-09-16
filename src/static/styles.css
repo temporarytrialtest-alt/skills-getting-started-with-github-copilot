@@ -187,5 +187,10 @@ body[data-theme="focus"] .settings-panel {
 
 body[data-theme="focus"] .eyebrow,
 body[data-theme="focus"] footer {
-  display: none;
+  opacity: 0.72;
+}
+
+body[data-theme="focus"] footer {
+  font-size: 0.9rem;
+  margin-top: 12px;
 }

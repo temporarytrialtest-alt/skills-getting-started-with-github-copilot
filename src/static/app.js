@@ -113,7 +113,7 @@ document.addEventListener("DOMContentLoaded", () => {
     document.body.dataset.theme = state.preferences.theme;
   }
 
-  function playTone(type) {
+  function createTone(type) {
     if (!audioContext) {
       return;
     }
@@ -121,10 +121,6 @@ document.addEventListener("DOMContentLoaded", () => {
     const soundEnabled = state.preferences.sounds[type];
     if (!soundEnabled) {
       return;
-    }
-
-    if (audioContext.state === "suspended") {
-      audioContext.resume().catch(() => {});
     }
 
     const frequencies = { start: 523.25, end: 659.25, tick: 880 };
@@ -140,6 +136,19 @@ document.addEventListener("DOMContentLoaded", () => {
     gainNode.connect(audioContext.destination);
     oscillator.start();
     oscillator.stop(audioContext.currentTime + durations[type]);
+  }
+
+  function playTone(type) {
+    if (!audioContext) {
+      return;
+    }
+
+    if (audioContext.state === "suspended") {
+      audioContext.resume().then(() => createTone(type)).catch(() => {});
+      return;
+    }
+
+    createTone(type);
   }
 
   function stopTimer() {
@@ -201,7 +210,7 @@ document.addEventListener("DOMContentLoaded", () => {
     setStatus(mode === "work" ? "Work session selected." : "Break session selected.");
   }
 
-  function updatePreferences(partialPreferences) {
+  function updatePreferences(partialPreferences, shouldResetTimer = false) {
     state.preferences = {
       ...state.preferences,
       ...partialPreferences,
@@ -212,7 +221,9 @@ document.addEventListener("DOMContentLoaded", () => {
     };
     savePreferences();
     syncControls();
-    resetTimer();
+    if (shouldResetTimer) {
+      resetTimer();
+    }
     setStatus("Preferences saved.");
   }
 
@@ -229,11 +240,11 @@ document.addEventListener("DOMContentLoaded", () => {
   breakModeButton.addEventListener("click", () => setMode("break"));
 
   workDurationSelect.addEventListener("change", () => {
-    updatePreferences({ workDuration: Number(workDurationSelect.value) });
+    updatePreferences({ workDuration: Number(workDurationSelect.value) }, true);
   });
 
   breakDurationSelect.addEventListener("change", () => {
-    updatePreferences({ breakDuration: Number(breakDurationSelect.value) });
+    updatePreferences({ breakDuration: Number(breakDurationSelect.value) }, true);
   });
 
   themeInputs.forEach((input) => {
